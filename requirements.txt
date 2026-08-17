@@ -1,8 +1,12 @@
-flask
+Flask
 flask-cors
 groq
 langchain
 langchain-community
+langchain-text-splitters
 chromadb
-pypdf
 sentence-transformers
+pypdf
+torch
+huggingface-hub
+gunicorn
