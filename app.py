@@ -39,16 +39,27 @@ retriever = None
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 if not GROQ_API_KEY:
-    logging.error("GROQ_API_KEY environment variable is not set.")
-    logging.error("Please set the GROQ_API_KEY environment variable before running the app.")
-    sys.exit(1)
+    logging.warning("⚠️  GROQ_API_KEY environment variable is not set.")
+    logging.warning("The app will still start, but chat functionality will fail until this is set.")
 
-try:
-    client = Groq(api_key=GROQ_API_KEY)
-    logging.info("Groq client initialized successfully")
-except Exception as e:
-    logging.error(f"Failed to initialize Groq client: {str(e)}")
-    sys.exit(1)
+client = None
+
+def get_groq_client():
+    """Initialize Groq client lazily on first use"""
+    global client
+    if client is None:
+        if not GROQ_API_KEY:
+            raise ValueError(
+                "GROQ_API_KEY environment variable is not set. "
+                "Please set it and restart the service."
+            )
+        try:
+            client = Groq(api_key=GROQ_API_KEY)
+            logging.info("Groq client initialized successfully")
+        except Exception as e:
+            logging.error(f"Failed to initialize Groq client: {str(e)}")
+            raise
+    return client
 
 
 # -----------------------------
@@ -200,7 +211,8 @@ def chat():
             [doc.page_content for doc in docs]
         )
 
-        completion = client.chat.completions.create(
+        groq_client = get_groq_client()
+        completion = groq_client.chat.completions.create(
 
             model="llama-3.3-70b-versatile",
 
