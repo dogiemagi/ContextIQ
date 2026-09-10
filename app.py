@@ -1,6 +1,12 @@
 import os
+import sys
+import logging
 import warnings
 import traceback
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
@@ -13,6 +19,12 @@ from langchain_community.vectorstores import Chroma
 
 warnings.filterwarnings("ignore")
 
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    stream=sys.stdout
+)
+
 app = Flask(__name__)
 CORS(app)
 
@@ -24,13 +36,19 @@ retriever = None
 
 # -----------------------------
 # Groq Configuration
-# -----------------------------
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
 if not GROQ_API_KEY:
-    raise ValueError("GROQ_API_KEY environment variable is not set.")
+    logging.error("GROQ_API_KEY environment variable is not set.")
+    logging.error("Please set the GROQ_API_KEY environment variable before running the app.")
+    sys.exit(1)
 
-client = Groq(api_key=GROQ_API_KEY)
+try:
+    client = Groq(api_key=GROQ_API_KEY)
+    logging.info("Groq client initialized successfully")
+except Exception as e:
+    logging.error(f"Failed to initialize Groq client: {str(e)}")
+    sys.exit(1)
 
 
 # -----------------------------
@@ -39,7 +57,7 @@ client = Groq(api_key=GROQ_API_KEY)
 def setup_rag_pipeline(file_path):
 
     try:
-        print(f"Processing file: {file_path}")
+        logging.info(f"Processing file: {file_path}")
 
         if file_path.lower().endswith(".pdf"):
             loader = PyPDFLoader(file_path)
@@ -58,7 +76,7 @@ def setup_rag_pipeline(file_path):
 
         documents = loader.load()
 
-        print(f"Loaded {len(documents)} documents.")
+        logging.info(f"Loaded {len(documents)} documents.")
 
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=750,
@@ -67,31 +85,29 @@ def setup_rag_pipeline(file_path):
 
         docs = text_splitter.split_documents(documents)
 
-        print(f"Split into {len(docs)} chunks.")
+        logging.info(f"Split into {len(docs)} chunks.")
 
-        print("Loading embedding model...")
+        logging.info("Loading embedding model...")
 
         embeddings = HuggingFaceEmbeddings(
             model_name="sentence-transformers/all-MiniLM-L6-v2"
         )
 
-        print("Embedding model loaded.")
+        logging.info("Embedding model loaded.")
 
-        print("Creating vector store...")
+        logging.info("Creating vector store...")
 
         db = Chroma.from_documents(
             documents=docs,
             embedding=embeddings
         )
 
-        print("Vector store created successfully.")
+        logging.info("Vector store created successfully.")
 
         return db.as_retriever(search_kwargs={"k": 4})
 
-    except Exception:
-        print("\n--- ERROR IN RAG PIPELINE ---")
-        traceback.print_exc()
-        print("-----------------------------\n")
+    except Exception as e:
+        logging.error(f"ERROR IN RAG PIPELINE: {str(e)}", exc_info=True)
         raise
 
 
@@ -101,6 +117,12 @@ def setup_rag_pipeline(file_path):
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+# Health Check for Render
+@app.route("/health", methods=["GET"])
+def health_check():
+    return jsonify({"status": "healthy", "service": "ContextIQ"}), 200
 
 
 # -----------------------------
@@ -137,9 +159,7 @@ def upload_file():
         })
 
     except Exception as e:
-
-        traceback.print_exc()
-
+        logging.error(f"File upload failed for '{filename}': {str(e)}", exc_info=True)
         return jsonify({
             "error": f"Processing failed: {str(e)}"
         }), 500
@@ -214,12 +234,8 @@ Context:
             "response": bot_response
         })
 
-    except Exception:
-
-        print("\n--- ERROR IN CHAT ---")
-        traceback.print_exc()
-        print("---------------------\n")
-
+    except Exception as e:
+        logging.error(f"Chat request failed: {str(e)}", exc_info=True)
         return jsonify({
             "error": "Failed to get a response. Check server logs."
         }), 500
@@ -227,12 +243,15 @@ Context:
 
 # -----------------------------
 # Render Entry Point
-# -----------------------------
 if __name__ == "__main__":
-
     port = int(os.environ.get("PORT", 5000))
-
+    flask_env = os.environ.get("FLASK_ENV", "development")
+    
+    logging.info(f"Starting ContextIQ server on port {port}")
+    logging.info(f"Environment: {flask_env}")
+    
     app.run(
         host="0.0.0.0",
-        port=port
+        port=port,
+        debug=(flask_env == "development")
     )
