@@ -31,7 +31,10 @@ document.addEventListener("DOMContentLoaded", () => {
                 body: formData,
             });
 
-            const data = await response.json();
+            const contentType = response.headers.get("content-type") || "";
+            const data = contentType.includes("application/json")
+                ? await response.json()
+                : { error: `Server returned HTTP ${response.status}. Please try again.` };
 
             if (response.ok) {
                 showStatus(data.success, "success");
@@ -106,4 +109,3 @@ document.addEventListener("DOMContentLoaded", () => {
         return messageDiv;
     }
 });
-
