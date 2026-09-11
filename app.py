@@ -12,11 +12,6 @@ from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from groq import Groq
 
-from langchain_community.document_loaders import CSVLoader, PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
-
 warnings.filterwarnings("ignore")
 
 logging.basicConfig(
@@ -75,6 +70,11 @@ def get_groq_client():
 def setup_rag_pipeline(file_path):
 
     try:
+        from langchain_community.document_loaders import CSVLoader, PyPDFLoader
+        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        from langchain_community.embeddings import HuggingFaceEmbeddings
+        from langchain_community.vectorstores import Chroma
+
         logging.info(f"Processing file: {file_path}")
 
         if file_path.lower().endswith(".pdf"):
