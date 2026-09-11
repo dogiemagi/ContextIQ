@@ -106,6 +106,7 @@ This project uses **Groq API** for LLM inference.
 3. Add your key to `.env`:
    ```
    GROQ_API_KEY=your_actual_groq_api_key_here
+   GROQ_MODEL=openai/gpt-oss-20b
    ```
 
 4. The application will read this automatically
@@ -233,4 +234,3 @@ It reflects how **modern AI applications are built in industry**, not just theor
 ## License
 
 This project is licensed under the **MIT License**.
-

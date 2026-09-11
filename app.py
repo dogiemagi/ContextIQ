@@ -64,6 +64,7 @@ class LightweightRetriever:
 # -----------------------------
 # Groq Configuration
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-20b")
 
 if not GROQ_API_KEY:
     logging.warning("⚠️  GROQ_API_KEY environment variable is not set.")
@@ -220,7 +221,7 @@ def chat():
         groq_client = get_groq_client()
         completion = groq_client.chat.completions.create(
 
-            model="llama-3.3-70b-versatile",
+            model=GROQ_MODEL,
 
             messages=[
                 {
