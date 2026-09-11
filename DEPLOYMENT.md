@@ -38,7 +38,13 @@ This guide covers deploying ContextIQ to **Render** (recommended for free tier) 
    ```
    (Get this from [console.groq.com](https://console.groq.com))
 
-3. Click **Deploy** 🎉
+3. Optionally set the Groq model. The default is `openai/gpt-oss-20b`, a current production model:
+   ```
+   Key: GROQ_MODEL
+   Value: openai/gpt-oss-20b
+   ```
+
+4. Click **Deploy** 🎉
 
 ### 3. Verify Deployment
 Once deployment completes:
