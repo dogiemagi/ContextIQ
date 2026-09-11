@@ -1,6 +1,8 @@
 import os
 import sys
+import csv
 import logging
+import re
 import warnings
 import traceback
 from dotenv import load_dotenv
@@ -28,6 +30,36 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 retriever = None
+
+
+class DocumentChunk:
+    def __init__(self, page_content):
+        self.page_content = page_content
+
+
+class LightweightRetriever:
+    def __init__(self, chunks, limit=4):
+        self.chunks = chunks
+        self.limit = limit
+        self.chunk_terms = [
+            set(re.findall(r"\w+", chunk.lower())) for chunk in chunks
+        ]
+
+    def invoke(self, query):
+        query_terms = set(re.findall(r"\w+", query.lower()))
+        ranked = sorted(
+            zip(self.chunks, self.chunk_terms),
+            key=lambda item: len(query_terms.intersection(item[1])),
+            reverse=True,
+        )
+        matches = [
+            DocumentChunk(chunk)
+            for chunk, terms in ranked[:self.limit]
+            if query_terms.intersection(terms)
+        ]
+        return matches or [
+            DocumentChunk(chunk) for chunk in self.chunks[:self.limit]
+        ]
 
 # -----------------------------
 # Groq Configuration
@@ -63,59 +95,33 @@ def get_groq_client():
 def setup_rag_pipeline(file_path):
 
     try:
-        from langchain_community.document_loaders import CSVLoader, PyPDFLoader
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
-        from langchain_community.embeddings import HuggingFaceEmbeddings
-        from langchain_community.vectorstores import Chroma
-
         logging.info(f"Processing file: {file_path}")
 
         if file_path.lower().endswith(".pdf"):
-            loader = PyPDFLoader(file_path)
+            from pypdf import PdfReader
+
+            reader = PdfReader(file_path)
+            source_text = "\n".join(page.extract_text() or "" for page in reader.pages)
 
         elif file_path.lower().endswith(".csv"):
-            loader = CSVLoader(
-                file_path=file_path,
-                csv_args={"delimiter": ","},
-                encoding="latin1"
-            )
+            with open(file_path, newline="", encoding="latin1") as csv_file:
+                source_text = "\n".join(
+                    " | ".join(row) for row in csv.reader(csv_file)
+                )
 
         else:
-            raise ValueError(
-                "Unsupported file type. Please upload a CSV or PDF."
-            )
+            raise ValueError("Unsupported file type. Please upload a CSV or PDF.")
 
-        documents = loader.load()
+        chunks = [
+            source_text[index:index + 750]
+            for index in range(0, len(source_text), 650)
+            if source_text[index:index + 750].strip()
+        ]
+        if not chunks:
+            raise ValueError("The uploaded document does not contain readable text.")
 
-        logging.info(f"Loaded {len(documents)} documents.")
-
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=750,
-            chunk_overlap=100
-        )
-
-        docs = text_splitter.split_documents(documents)
-
-        logging.info(f"Split into {len(docs)} chunks.")
-
-        logging.info("Loading embedding model...")
-
-        embeddings = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2"
-        )
-
-        logging.info("Embedding model loaded.")
-
-        logging.info("Creating vector store...")
-
-        db = Chroma.from_documents(
-            documents=docs,
-            embedding=embeddings
-        )
-
-        logging.info("Vector store created successfully.")
-
-        return db.as_retriever(search_kwargs={"k": 4})
+        logging.info(f"Created {len(chunks)} lightweight retrieval chunks.")
+        return LightweightRetriever(chunks)
 
     except Exception as e:
         logging.error(f"ERROR IN RAG PIPELINE: {str(e)}", exc_info=True)
