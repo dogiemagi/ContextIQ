@@ -1,0 +1,15 @@
+Django=5.2
+django-cors-headers=4.3
+
+langchain=0.2
+langchain-community=0.2
+langchain-huggingface=0.0.3
+
+chromadb=0.5
+sentence-transformers=2.6
+
+pypdf=4.0
+
+groq=0.9
+
+numpy=1.26
