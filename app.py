@@ -33,6 +33,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 
 retriever = None
+client = None
 
 # -----------------------------
 # Groq Configuration
@@ -44,21 +45,27 @@ if not GROQ_API_KEY:
 
 client = None
 
+
 def get_groq_client():
     """Initialize Groq client lazily on first use"""
     global client
-    if client is None:
-        if not GROQ_API_KEY:
-            raise ValueError(
-                "GROQ_API_KEY environment variable is not set. "
-                "Please set it and restart the service."
-            )
-        try:
-            client = Groq(api_key=GROQ_API_KEY)
-            logging.info("Groq client initialized successfully")
-        except Exception as e:
-            logging.error(f"Failed to initialize Groq client: {str(e)}")
-            raise
+
+    if client is not None:
+        return client
+
+    if not GROQ_API_KEY:
+        raise ValueError(
+            "GROQ_API_KEY environment variable is not set. "
+            "Please set it and restart the service."
+        )
+
+    try:
+        client = Groq(api_key=GROQ_API_KEY)
+        logging.info("Groq client initialized successfully")
+    except Exception as e:
+        logging.error(f"Failed to initialize Groq client: {str(e)}")
+        raise
+
     return client
 
 
@@ -212,6 +219,7 @@ def chat():
         )
 
         groq_client = get_groq_client()
+
         completion = groq_client.chat.completions.create(
 
             model="llama-3.3-70b-versatile",
