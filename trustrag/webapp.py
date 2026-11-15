@@ -9,11 +9,12 @@ import binascii
 import shutil
 import time
 from collections import defaultdict, deque
+from html import escape as html_escape
 from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -57,7 +58,7 @@ def create_webapp(settings: Settings | None = None) -> FastAPI:
     s = settings or get_settings()
     db = Database(s.database_url or s.db_path)
     ws = WorkspaceManager(settings=s, db=db)
-    app = FastAPI(title="TrustRAG", version=__version__, docs_url="/api/docs", openapi_url="/api/openapi.json")
+    app = FastAPI(title=s.app_name, version=__version__, docs_url="/api/docs", openapi_url="/api/openapi.json")
     ask_log: dict[str, deque] = defaultdict(deque)
 
     from .llm import get_llm as _get_llm
@@ -88,7 +89,7 @@ def create_webapp(settings: Settings | None = None) -> FastAPI:
     # ------------------------------------------------------------------ public
     @app.api_route("/api/status", methods=["GET", "HEAD"])  # HEAD too: hosting health checks often use it
     def status() -> dict:
-        return {"app": "TrustRAG", "version": __version__, "llm": shared_llm.name, "model": shared_llm.model,
+        return {"app": s.app_name, "version": __version__, "llm": shared_llm.name, "model": shared_llm.model,
                 "fluent": shared_llm.is_real, "registration": s.allow_registration, "database": db.backend}
 
     @app.post("/api/register")
@@ -258,8 +259,10 @@ def create_webapp(settings: Settings | None = None) -> FastAPI:
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
 
     @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
-    def index() -> FileResponse:
-        return FileResponse(WEB_DIR / "index.html", headers={"Cache-Control": "no-cache"})
+    def index() -> HTMLResponse:
+        # The page title and logo text come from APP_NAME (HTML-escaped), so renaming needs no code change.
+        page = (WEB_DIR / "index.html").read_text(encoding="utf-8").replace("__APP_NAME__", html_escape(s.app_name))
+        return HTMLResponse(page, headers={"Cache-Control": "no-cache"})
 
     app.mount("/static", StaticFiles(directory=WEB_DIR), name="static")
     return app

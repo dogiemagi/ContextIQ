@@ -55,6 +55,7 @@ class Settings:
     db_path: Path = ROOT / "data" / "app.db"
     ollama_model: str = "llama3.2"
     groq_model: str = "openai/gpt-oss-20b"
+    app_name: str = "ContextIQ"  # product name shown in the UI; override with APP_NAME
     allow_registration: bool = True
     database_url: str | None = None  # postgresql://... (Neon/Supabase). If unset, SQLite at db_path is used.
 
@@ -84,6 +85,7 @@ def get_settings() -> Settings:
         db_path=Path(os.getenv("TRUSTRAG_DB", data / "app.db")),
         ollama_model=os.getenv("OLLAMA_MODEL", "llama3.2"),
         groq_model=os.getenv("GROQ_MODEL", "openai/gpt-oss-20b"),
+        app_name=(os.getenv("APP_NAME") or "ContextIQ").strip()[:40] or "ContextIQ",
         allow_registration=os.getenv("ALLOW_REGISTRATION", "1") != "0",
         database_url=os.getenv("DATABASE_URL") or None,
     )

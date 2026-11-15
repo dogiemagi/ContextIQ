@@ -76,6 +76,16 @@ def test_filename_with_spaces_still_triggers_the_quarantine_warning(tmp_path):
     assert out["name"] == "my_meeting_notes.txt"
 
 
+def test_app_name_is_configurable_and_escaped(tmp_path):
+    s = dataclasses.replace(settings_for(tmp_path, tmp_path / "app.db"), app_name="ContextIQ")
+    client = TestClient(create_webapp(s))
+    html = client.get("/").text
+    assert "<title>ContextIQ - " in html and html.count("</span> ContextIQ</div>") == 2 and "TrustRAG" not in html
+    assert client.get("/api/status").json()["app"] == "ContextIQ"
+    evil = dataclasses.replace(s, app_name="<script>alert(1)</script>")
+    assert "<script>alert(1)" not in TestClient(create_webapp(evil)).get("/").text  # never injected raw
+
+
 def test_status_reports_database_backend(tmp_path):
     client = TestClient(create_webapp(settings_for(tmp_path, tmp_path / "app.db")))
     assert client.get("/api/status").json()["database"] == "sqlite"

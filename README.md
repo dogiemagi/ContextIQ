@@ -1,4 +1,4 @@
-# TrustRAG - chat with your own documents
+# ContextIQ - chat with your own documents
 
 A complete web application: **sign up, upload PDFs, ask questions, get answers with the exact source cited.**
 If the answer isn't in your files, it says so instead of guessing. Hidden attacks inside documents are detected and ignored.

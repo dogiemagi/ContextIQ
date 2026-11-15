@@ -52,7 +52,7 @@ def signup(client, email="ada@example.com", password="correct-horse-1", name="Ad
 
 def test_frontend_is_served_with_security_headers(client):
     r = client.get("/")
-    assert r.status_code == 200 and "TrustRAG" in r.text
+    assert r.status_code == 200 and get_settings().app_name in r.text and "__APP_NAME__" not in r.text
     assert r.headers["x-frame-options"] == "DENY" and "default-src 'self'" in r.headers["content-security-policy"]
     assert client.get("/static/app.js").status_code == 200
 

@@ -133,7 +133,7 @@ def test_gunicorn_entrypoint_is_a_real_asgi_app_with_head_support(tmp_path, monk
     sys.modules.pop("app", None)
     entry = importlib.import_module("app").app
     c = TestClient(entry)
-    assert c.get("/api/status").json()["app"] == "TrustRAG" and c.get("/").status_code == 200
+    assert c.get("/api/status").json()["app"] == get_settings().app_name and c.get("/").status_code == 200
     # Hosting health checks (Render) probe with HEAD: it must be 200, not 405 and not a hang.
     assert c.head("/").status_code == 200 and c.head("/api/status").status_code == 200
     sys.modules.pop("app", None)
