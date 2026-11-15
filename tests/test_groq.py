@@ -4,7 +4,6 @@ import json
 import sys
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from wsgiref.util import setup_testing_defaults
 
 import pytest
 
@@ -123,18 +122,28 @@ def test_chat_survives_a_broken_model_by_quoting_the_documents(rag, fake):
     assert "$99" in r.answer and "model_unavailable_used_extractive" in r.flags and not r.abstained
 
 
-def test_gunicorn_style_entrypoint_serves_the_app(tmp_path, monkeypatch):
-    """`gunicorn app:app` (how the old ContextIQ service started) must keep working via the WSGI shim."""
+def test_gunicorn_entrypoint_is_a_real_asgi_app_with_head_support(tmp_path, monkeypatch):
+    """`gunicorn app:app` (the old ContextIQ start command) must load an ASGI app, answering GET *and* HEAD."""
+    from fastapi.testclient import TestClient
+
     monkeypatch.setenv("TRUSTRAG_DATA", str(tmp_path))
     monkeypatch.setenv("TRUSTRAG_DB", str(tmp_path / "app.db"))
     monkeypatch.delenv("DATABASE_URL", raising=False)
     monkeypatch.setenv("LLM_PROVIDER", "offline")
     sys.modules.pop("app", None)
-    wsgi = importlib.import_module("app").app
-    for path, expect in [("/api/status", b'"app":"TrustRAG"'), ("/", b"TrustRAG")]:
-        env = {"REQUEST_METHOD": "GET", "PATH_INFO": path, "QUERY_STRING": ""}
-        setup_testing_defaults(env)
-        seen = {}
-        body = b"".join(wsgi(env, lambda status, headers, exc=None: seen.update(status=status)))
-        assert seen["status"].startswith("200") and expect in body, (path, seen, body[:100])
+    entry = importlib.import_module("app").app
+    c = TestClient(entry)
+    assert c.get("/api/status").json()["app"] == "TrustRAG" and c.get("/").status_code == 200
+    # Hosting health checks (Render) probe with HEAD: it must be 200, not 405 and not a hang.
+    assert c.head("/").status_code == 200 and c.head("/api/status").status_code == 200
     sys.modules.pop("app", None)
+
+
+def test_gunicorn_config_selects_the_asgi_worker():
+    import runpy
+    from pathlib import Path
+
+    conf = runpy.run_path(str(Path(__file__).resolve().parent.parent / "gunicorn.conf.py"))
+    assert conf["worker_class"] == "uvicorn_worker.UvicornWorker" and conf["workers"] == 1 and conf["timeout"] >= 120
+    reqs = (Path(__file__).resolve().parent.parent / "requirements.txt").read_text()
+    assert "uvicorn-worker" in reqs and "gunicorn" in reqs

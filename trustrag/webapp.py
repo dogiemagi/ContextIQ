@@ -86,7 +86,7 @@ def create_webapp(settings: Settings | None = None) -> FastAPI:
         return user
 
     # ------------------------------------------------------------------ public
-    @app.get("/api/status")
+    @app.api_route("/api/status", methods=["GET", "HEAD"])  # HEAD too: hosting health checks often use it
     def status() -> dict:
         return {"app": "TrustRAG", "version": __version__, "llm": shared_llm.name, "model": shared_llm.model,
                 "fluent": shared_llm.is_real, "registration": s.allow_registration, "database": db.backend}
@@ -257,7 +257,7 @@ def create_webapp(settings: Settings | None = None) -> FastAPI:
     async def http_error(_: Request, exc: HTTPException):
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code, headers=exc.headers)
 
-    @app.get("/", include_in_schema=False)
+    @app.api_route("/", methods=["GET", "HEAD"], include_in_schema=False)
     def index() -> FileResponse:
         return FileResponse(WEB_DIR / "index.html", headers={"Cache-Control": "no-cache"})
 

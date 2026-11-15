@@ -6,8 +6,8 @@ uvicorn>=0.29
 pydantic>=2.6
 psycopg[binary]>=3.1     # Postgres driver (used only when DATABASE_URL is set)
 psycopg-pool>=3.2
-gunicorn>=21.0           # only needed if the host starts the app with `gunicorn app:app`
-a2wsgi>=1.10             # lets gunicorn serve the FastAPI app (see app.py)
+gunicorn>=21.0           # only used if the host starts the app with `gunicorn app:app`
+uvicorn-worker>=0.3      # ASGI worker for gunicorn (see gunicorn.conf.py)
 
 # Optional - uncomment what you want to use
 # anthropic>=0.40            # LLM_PROVIDER=anthropic
