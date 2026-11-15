@@ -1,236 +1,108 @@
-# ContextIQ 🧠  
+# TrustRAG - chat with your own documents
 
-**Retrieval-Augmented Generation (RAG) Document Q&A System**
+A complete web application: **sign up, upload PDFs, ask questions, get answers with the exact source cited.**
+If the answer isn't in your files, it says so instead of guessing. Hidden attacks inside documents are detected and ignored.
 
-ContextIQ is a **RAG-based web application** that allows users to upload documents (PDF / CSV) and ask questions that are answered **strictly using the uploaded content**.  
-It combines **LangChain**, **ChromaDB**, **HuggingFace embeddings**, and **Groq-hosted LLaMA models** into a complete end-to-end GenAI pipeline.
+## Run it (Windows)
 
-
-## Key Features
-
--  Upload PDF or CSV documents
--  Automatic text chunking for efficient retrieval
--  Semantic search using vector embeddings
--  Context-aware answers using an LLM
--  ChromaDB vector store
--  Ultra-low latency LLM inference using Groq
--  Strong error handling and logging
-
-
-## RAG Pipeline Overview
-
-This project follows the **Retrieval-Augmented Generation (RAG)** architecture:
-
-1. **Document Ingestion**  
-   Uploaded documents are loaded using LangChain document loaders.
-
-2. **Text Chunking**  
-   Large documents are split into overlapping chunks to preserve context.
-
-3. **Embedding Generation**  
-   Each chunk is converted into a semantic vector using HuggingFace embeddings.
-
-4. **Vector Storage (ChromaDB)**  
-   Vectors are stored in a Chroma vector database for similarity search.
-
-5. **Query-Time Retrieval**  
-   Relevant chunks are retrieved based on semantic similarity.
-
-6. **LLM Response Generation**  
-   Retrieved context is passed to a Groq-hosted LLaMA model to generate grounded responses.
-
-## Tech Stack
-
-| Layer | Technology |
-|-----|-----------|
-| Backend | Flask (Python) |
-| LLM | Groq – LLaMA-3.3-70B |
-| RAG Framework | LangChain |
-| Vector Database | ChromaDB |
-| Embeddings | HuggingFace (`all-MiniLM-L6-v2`) |
-| Frontend | HTML, CSS, JavaScript |
-| CORS | Flask-CORS |
-
-
-## Project Structure
-
-```
-
-ContextIQ/
-├── app.py                 # Main Flask app and RAG pipeline
-├── uploads/               # Uploaded documents
-├── templates/
-│   └── index.html         # Frontend UI
-├── static/                # CSS and JS assets
-├── requirements.txt       # Python dependencies
-└── README.md
-
-````
-
-
-
-## Installation & Setup
-
-### Clone the Repository
-```bash
-git clone https://github.com/dogiemagi/ContextIQ.git
-cd ContextIQ
-````
-
-### Create Virtual Environment (Recommended)
-
-```bash
-python -m venv venv
-source venv/bin/activate   # Linux / macOS
-venv\Scripts\activate      # Windows
-```
-
-### Install Dependencies
+Double-click **`run.bat`**, or:
 
 ```bash
 pip install -r requirements.txt
+python -m trustrag.webapp          # opens http://localhost:8000
 ```
 
+1. Click **Create account** (stored locally in `data/app.db`).
+2. Click **Try it with sample documents** - or drag in your own PDF / TXT / MD files.
+3. Ask a question. Click a numbered citation chip to see the exact passage and page.
 
-## API Key Configuration
+### Which AI writes the answers?
+Auto-detected, in this order - the pill at the top of the app shows which one is active:
 
-This project uses **Groq API** for LLM inference.
+| You have | Result |
+|---|---|
+| `ANTHROPIC_API_KEY` set | Claude writes fluent answers |
+| `OPENAI_API_KEY` set | OpenAI writes fluent answers |
+| [Ollama](https://ollama.com) running | Free local model (auto-picks an installed chat model, e.g. `qwen2.5:7b`) |
+| nothing | "Offline mode": answers are quoted straight from your documents |
 
-1. Create a `.env` file in the project root (copy from `.env.example`):
-   ```bash
-   cp .env.example .env
-   ```
+If the model ever fails or times out, the app falls back to the quoted answer instead of showing an error.
 
-2. Get your Groq API key from [console.groq.com](https://console.groq.com)
+## What's in the app
 
-3. Add your key to `.env`:
-   ```
-   GROQ_API_KEY=your_actual_groq_api_key_here
-   GROQ_MODEL=openai/gpt-oss-20b
-   ```
+| Feature | Details |
+|---|---|
+| Accounts | Register / sign in / sign out / delete account. PBKDF2-SHA256 salted passwords, hashed session tokens, brute-force lockout |
+| Private workspaces | Every user has separate documents, index, cache and traces. Verified by tests: user B can't see or query user A's data |
+| Uploads | PDF (page-aware), TXT, MD, up to 15 MB, 25 documents. Scanned/encrypted/corrupt files give a clear message |
+| Chat | Saved conversations, follow-up questions that remember context, copy, thumbs up/down |
+| Trust | Numbered citations with page + section, confidence meter, "supported by sources" check, "not found" instead of guessing |
+| Security shield | Blocks prompt-injection in questions; quarantines poisoned sections in uploaded files; hides personal data (emails, cards, phone, SSN) |
+| Insights | Questions asked, response time, cache hits, attacks blocked, per-request timing bars |
+| Calculator | Arithmetic questions use a safe calculator tool (no `eval`) |
 
-4. The application will read this automatically
+## Under the hood (the AI engineering)
+Hybrid retrieval (dense + BM25 from scratch -> Reciprocal Rank Fusion -> rerank -> MMR), contextual chunk headers, an agent
+planner with tools, grounded generation with citations, groundedness scoring, semantic cache, span-level tracing with
+token/cost accounting, and an evaluation harness with a CI quality gate.
 
+```
+web/        index.html  style.css  app.js            the product UI (no build step)
+trustrag/   webapp db workspaces extract             accounts, storage, uploads
+            agent retriever bm25 chunking llm        the RAG engine
+            guardrails tools cache observability     safety, tools, speed, tracing
+            evaluation                               golden-set eval + ablation + quality gate
+data/docs/  sample knowledge base (one file is deliberately poisoned)
+tests/      47 tests
+```
 
-## Running the Application
+## Deploy: Render (app) + Neon (database)
+Locally the app uses a SQLite file. In production it uses **Postgres** whenever `DATABASE_URL` is set. Accounts, chats and
+uploaded documents all live in the database; the search index is rebuilt from it on startup, so Render restarts and redeploys
+lose nothing.
+
+1. **Neon**: create a project at neon.tech and copy the connection string (`postgresql://...?sslmode=require`).
+2. Push this repo to GitHub.
+3. **Render**: **New** -> **Blueprint** -> pick the repo (it reads `render.yaml`).
+4. When asked for env vars, paste `DATABASE_URL` (the Neon string). Optionally add `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`
+   and set `LLM_PROVIDER` for fluent answers.
+5. Open the `.onrender.com` URL (`/api/status` should say `"database":"postgres"`), create your account, then set
+   `ALLOW_REGISTRATION=0` to lock sign-ups.
+
+Free-tier notes: Render sleeps idle instances (first request ~30-60 s) and Neon suspends idle compute (wakes in ~1 s).
+Neither deletes data. Tables are created automatically on first start.
+
+Verify the Postgres path yourself against a throwaway database:
+```bash
+set TEST_DATABASE_URL=postgresql://user:password@host/dbname?sslmode=require
+python -m pytest tests/test_postgres.py -v
+```
+
+## Quality checks
 
 ```bash
-python app.py
+pip install -r requirements-dev.txt
+python -m pytest -q                 # 47 tests: auth, privacy, PDFs, attacks, retrieval, API
+python -m trustrag.evaluation       # 23-question eval + retrieval ablation; exit code 1 if quality regresses
 ```
+Offline-mode results on the sample set: hit@4 1.00, MRR 0.97, fact recall 1.00, groundedness 1.00, 3/3 unanswerable
+refused, 2/2 attacks blocked, 0 poisoned-answer leaks. (With only 26 chunks all retrieval modes tie; the ablation
+becomes informative on a larger corpus.)
 
-The server will start at:
+## Configuration (`.env.example`)
+`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `OLLAMA_MODEL`, `EMBEDDINGS=st` (real semantic embeddings via sentence-transformers),
+`ALLOW_REGISTRATION=0` (lock sign-ups), `PORT`, `HOST`. Docker: `docker compose up --build`.
 
-```
-http://localhost:5000
-```
+## Known limits (honest list)
+- Scanned PDFs (images only) aren't supported - no OCR.
+- A local 7B model on CPU takes ~10-60 s per answer (first one loads the model). The app pre-warms it and shows a live timer.
+- Documents are stored as extracted text inside Postgres (fine for personal-sized libraries; use object storage for very large files).
+- One web worker is assumed (in-memory login-attempt counters and caches are per process).
+- Over plain HTTP: put it behind HTTPS (e.g. Caddy/nginx) before exposing it beyond localhost.
 
-
-
-## API Endpoints
-
-### `/upload` (POST)
-
-* Uploads a PDF or CSV file
-* Builds embeddings
-* Initializes the ChromaDB retriever
-
-### `/chat` (POST)
-
-* Accepts a user query
-* Retrieves relevant document chunks
-* Generates a grounded LLM response
-
-
-
-## Error Handling
-
-* Full traceback logging for debugging
-* Clear user-friendly error responses
-* Validation for:
-
-  * Missing uploads
-  * Unsupported file formats
-  * Empty queries
-
-
-
-## Why This Project Matters
-
-This project demonstrates **real-world GenAI engineering skills**, including:
-
-* Practical use of **RAG architecture**
-* Vector search with **ChromaDB**
-* Prompt-controlled LLM grounding
-* Backend API design
-* Production-ready debugging practices
-
-It reflects how **modern AI applications are built in industry**, not just theory.
-
-
-## Deployment on Render
-
-### Prerequisites
-
-1. A GitHub account with this repository
-2. A [Render.com](https://render.com) account (free tier available)
-3. A [Groq API key](https://console.groq.com) from https://console.groq.com
-
-### Step-by-Step Deployment
-
-1. **Create a New Web Service on Render**
-   - Go to [Render Dashboard](https://dashboard.render.com)
-   - Click "New" → "Web Service"
-   - Connect your GitHub repository
-
-2. **Configure Environment Variables**
-   - In the Render dashboard, go to **Environment** tab
-   - Add the following environment variable:
-     - Key: `GROQ_API_KEY`
-     - Value: `your_actual_groq_api_key`
-
-3. **Build and Deploy**
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `gunicorn app:app`
-   - Instance Type: Free tier is sufficient for testing
-
-4. **Monitor Deployment**
-   - Check Logs tab for any errors
-   - Visit `https://<your-service>.onrender.com` to access the app
-   - Health check: `https://<your-service>.onrender.com/health`
-
-### Important Notes
-
-⚠️ **File Storage Limitation**: Uploaded documents are stored in an ephemeral `/uploads` directory. Files will be **lost when the service restarts** or after 15 minutes of inactivity on the free tier. For production, consider:
-- Using Render Persistent Disks
-- S3/Cloud Storage integration
-- Database-backed file storage
-
-✅ **Production-Ready Features**:
-- Auto-scaling with Gunicorn
-- Error logging to stdout
-- Health check endpoint
-- Environment variable configuration
-- Python 3.11 runtime
-
-### Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| "GROQ_API_KEY not set" | Verify environment variable in Render dashboard |
-| Port binding error | Ensure PORT env var is correctly passed (Render does this automatically) |
-| Timeout errors | Groq API may be slow; increase timeout in production settings |
-| Vector store errors | Clear `/uploads` folder by restarting the service |
-
-
-## Future Enhancements
-
-* Persistent ChromaDB storage
-* Multi-document querying
-* Authentication & user sessions
-* Streaming LLM responses
-* Hybrid retrieval (keyword + vector)
-
-
-## License
-
-This project is licensed under the **MIT License**.
+## Interview talking points
+- **Why hybrid retrieval?** Dense catches paraphrase, BM25 catches exact tokens like `99.99%`; RRF fuses ranks without calibrating score scales.
+- **Indirect prompt injection?** Attack text hidden *in documents*. Uploads are scanned and bad sections quarantined before they can reach the model.
+- **Multi-tenancy?** One engine instance per user rooted in its own directory; ownership checked on every conversation/document route.
+- **Graceful degradation?** Model failure -> extractive fallback; weak evidence -> abstain; slow local model -> pre-warm + progress feedback.
+- **How do you know it works?** Golden-set evaluation + 47 tests, enforced in CI.

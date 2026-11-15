@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TrustRAG - Chat with your documents</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%234f46e5'/%3E%3Cpath d='M9 11h14M9 16h14M9 21h8' stroke='white' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+  <meta name="theme-color" content="#f6f7fb">
+  <script src="/static/theme.js"></script>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- ============================ SIGN IN / SIGN UP ============================ -->
+<div id="auth" class="auth hidden">
+  <button id="authTheme" class="icon-btn theme-btn auth-theme" type="button"></button>
+  <div class="auth-hero">
+    <div class="brand"><span class="logo"></span> TrustRAG</div>
+    <h1>Ask questions.<br>Get answers from <em>your</em> documents.</h1>
+    <p class="lead">Upload PDFs and notes, then chat with them. Every answer cites the exact page it came from - and if the answer isn't in your files, it says so instead of guessing.</p>
+    <ul class="features">
+      <li><b><span data-icon="file-text"></span>Cited answers</b><span>See the source behind every claim.</span></li>
+      <li><b><span data-icon="lock"></span>Private workspace</b><span>Your documents are visible only to you.</span></li>
+      <li><b><span data-icon="shield-check"></span>Attack-resistant</b><span>Hidden instructions inside files are detected and ignored.</span></li>
+    </ul>
+  </div>
+  <div class="auth-card">
+    <div class="tabs" role="tablist">
+      <button id="tabLogin" class="tab active" type="button">Sign in</button>
+      <button id="tabRegister" class="tab" type="button">Create account</button>
+    </div>
+    <form id="authForm" novalidate>
+      <label id="nameRow" class="hidden">Your name
+        <input id="authName" type="text" autocomplete="name" maxlength="60" placeholder="Ada Lovelace">
+      </label>
+      <label>Email
+        <input id="authEmail" type="email" autocomplete="email" placeholder="you@example.com" required>
+      </label>
+      <label>Password
+        <input id="authPassword" type="password" autocomplete="current-password" placeholder="At least 8 characters" required>
+      </label>
+      <p id="authError" class="error hidden" role="alert"></p>
+      <button id="authSubmit" class="btn primary wide" type="submit">Sign in</button>
+    </form>
+    <p class="fineprint">Passwords are stored as salted hashes. You can delete your account and all data at any time.</p>
+  </div>
+</div>
+
+<!-- ============================ MAIN APP ============================ -->
+<div id="app" class="app hidden">
+  <div id="scrim" class="scrim hidden"></div>
+  <aside id="sidebar" class="sidebar">
+    <div class="side-top">
+      <div class="brand"><span class="logo"></span> TrustRAG</div>
+      <button id="newChat" class="btn primary wide" type="button"><span data-icon="plus"></span>New chat</button>
+    </div>
+
+    <div class="side-scroll">
+      <h2 class="side-h">Chats</h2>
+      <ul id="convList" class="conv-list"></ul>
+
+      <h2 class="side-h">Your documents <span id="docCount" class="badge">0</span></h2>
+      <ul id="docList" class="doc-list"></ul>
+      <div id="dropzone" class="dropzone" tabindex="0" role="button" aria-label="Upload documents">
+        <span class="dz-ico" data-icon="upload-cloud" data-size="26"></span>
+        <strong>Upload documents</strong>
+        <span>Drop PDF / TXT / MD here or click</span>
+        <input id="fileInput" type="file" accept=".pdf,.txt,.md,.markdown" multiple hidden>
+      </div>
+      <button id="loadSample" class="link-btn" type="button"><span data-icon="sparkle"></span>Or try the sample documents</button>
+    </div>
+
+    <div class="side-bottom">
+      <div class="who"><span id="avatar" class="avatar">?</span><span id="whoName" class="who-name"></span></div>
+      <div class="side-actions">
+        <button id="insightsBtn" class="btn ghost" type="button"><span data-icon="bar-chart"></span>Insights</button>
+        <button id="logoutBtn" class="btn ghost" type="button"><span data-icon="log-out"></span>Sign out</button>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="topbar">
+      <button id="menuBtn" class="icon-btn mobile-only" type="button" aria-label="Open menu"><span data-icon="menu" data-size="22"></span></button>
+      <h1 id="convTitle">New chat</h1>
+      <span id="modePill" class="pill" title=""></span>
+      <button id="themeToggle" class="icon-btn theme-btn" type="button"></button>
+    </header>
+
+    <section id="messages" class="messages" aria-live="polite"></section>
+
+    <form id="composer" class="composer">
+      <div class="composer-box">
+        <textarea id="input" rows="1" maxlength="2000" placeholder="Ask a question about your documents..." aria-label="Your question"></textarea>
+        <button id="sendBtn" class="send" type="submit" aria-label="Send">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+      <p class="hint">Enter to send &middot; Shift+Enter for a new line &middot; Answers come only from your uploaded documents</p>
+    </form>
+  </main>
+</div>
+
+<!-- ============================ INSIGHTS MODAL ============================ -->
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2 id="modalTitle">Insights</h2>
+      <button id="modalClose" class="icon-btn" type="button" aria-label="Close"><span data-icon="x" data-size="20"></span></button>
+    </div>
+    <div id="modalBody" class="modal-body"></div>
+  </div>
+</div>
+
+<div id="toasts" class="toasts" aria-live="assertive"></div>
+<script src="/static/app.js"></script>
+</body>
+</html>

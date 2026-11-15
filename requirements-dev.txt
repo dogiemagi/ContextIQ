@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=8.0
+httpx>=0.27
+streamlit>=1.35   # optional: ui/streamlit_app.py developer dashboard

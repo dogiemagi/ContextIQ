@@ -1,13 +1,31 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
 services:
   - type: web
     name: contextiq
-    runtime: python311
+    runtime: python
+    plan: free                      # free instances sleep after ~15 min idle. Data is safe: it lives in Postgres (DATABASE_URL)
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT --workers 1 --worker-class sync --timeout 120
-    plan: free
-    healthCheckPath: /
+    startCommand: python -m trustrag.webapp
+    healthCheckPath: /api/status
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: FLASK_ENV
-        value: production
+        value: 3.12.8
+      - key: HOST
+        value: 0.0.0.0              # Render injects PORT; the app reads it
+      - key: NO_BROWSER
+        value: "1"
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-20b   # same model ContextIQ used
+      - key: GROQ_API_KEY
+        sync: false                 # paste in the Render dashboard; never commit. With a key set, the app auto-selects Groq
+      - key: DATABASE_URL
+        sync: false                 # paste your Neon connection string in the Render dashboard; never commit it
+      - key: ALLOW_REGISTRATION
+        value: "1"                  # set to 0 once you've created your account to lock sign-ups
+      - key: ANTHROPIC_API_KEY
+        sync: false                 # optional alternatives (take priority over Groq if set)
+      - key: OPENAI_API_KEY
+        sync: false
+    # No persistent disk needed: accounts, chats AND uploaded documents are stored in Postgres, and the
+    # search index is rebuilt from the database whenever the server starts.
+    # Without any model key the app still works in "offline mode" (answers quoted from your documents).
