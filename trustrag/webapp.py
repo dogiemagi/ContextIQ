@@ -272,6 +272,14 @@ def __getattr__(name: str):  # lazy `app` so importing the module never touches 
     raise AttributeError(name)
 
 
+def resolve_host() -> str:
+    """HOST if set; otherwise bind publicly when a hosting platform provides PORT (Render, Heroku...),
+    and stay on localhost for normal local runs."""
+    import os
+
+    return os.getenv("HOST") or ("0.0.0.0" if os.getenv("PORT") else "127.0.0.1")
+
+
 def main() -> None:
     import os
     import threading
@@ -280,9 +288,9 @@ def main() -> None:
     import uvicorn
 
     port = int(os.getenv("PORT", "8000"))
-    if os.getenv("NO_BROWSER") != "1":
+    if os.getenv("NO_BROWSER") != "1" and not os.getenv("PORT"):  # never try to open a browser on a server
         threading.Timer(1.5, lambda: webbrowser.open(f"http://localhost:{port}")).start()
-    uvicorn.run("trustrag.webapp:app", host=os.getenv("HOST", "127.0.0.1"), port=port)
+    uvicorn.run("trustrag.webapp:app", host=resolve_host(), port=port)
 
 
 if __name__ == "__main__":
